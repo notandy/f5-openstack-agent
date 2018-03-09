@@ -438,6 +438,36 @@ class LbaasAgentManager(periodic_task.PeriodicTasks):  # b --> B
                 self.needs_resync = True
             if self.sync_state():
                 self.needs_resync = True
+            if self.clean_orphaned_snat_objects():
+                self.needs_resync = True
+
+    # ccloud: clean orphaned snat pools
+    @log_helpers.log_method_call
+    def clean_orphaned_snat_objects(self):
+        cleaned = False
+        LOG.debug("sapcc: cleaning orphaned snat objects")
+
+        try:
+            snat_pools = self.lbdriver.get_all_snat_pools()
+            LOG.debug('sapcc: %s' % snat_pools)
+            if snat_pools:
+                self.purge_orphaned_snat_pools(snat_pools)
+
+        except Exception as e:
+            LOG.error("sapcc: Unable to sync state: %s" % e.message)
+            cleaned = True
+
+        return cleaned
+
+    @log_helpers.log_method_call
+    def purge_orphaned_snat_pools(self, snat_pools):
+        for pool in snat_pools:
+            try:
+                LOG.debug("sapcc: deleting %s" % pool)
+                pool.delete()
+                # self.lbdriver.delete_snat_pool()
+            except Exception as e:
+                LOG.debug("Failed purging snat: %s" % e.message)
 
     @periodic_task.periodic_task(spacing=30)
     def update_operating_status(self, context):
